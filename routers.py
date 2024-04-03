@@ -1,7 +1,10 @@
-import asyncio
-from fastapi import APIRouter
-import threading
-import time
+from typing import Type, List
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from dependencies import get_db
+from crud import add_entry, get_all_entries
+from models import Entry
+
 from robot import async_robot
 
 robot_router = APIRouter(
@@ -9,20 +12,22 @@ robot_router = APIRouter(
     tags=["Robot"],
 )
 
-thread_stop = False
-
 
 @robot_router.post("/start/{start_id}")
-def start_robot(start_id: int) -> None:
-    asyncio.run(async_robot.start(start_id))
+async def start_robot(start_id: int) -> dict:
+    await async_robot.start(start_id)
+    return {"info": "Robot started"}
 
 
 @robot_router.post("/stop")
-def stop_robot() -> None:
-    asyncio.run(async_robot.stop())
+async def stop_robot(db: Session = Depends(get_db)) -> dict:
+    await async_robot.stop()
+    add_entry(db, async_robot.start_id, async_robot.start_time)
+    return {"info": "Robot stopped!"}
 
 
-if __name__ == "__main__":
-    start_robot(3)
-    stop_robot()
-    # task = asyncio.create_task(start_loop(start_id))
+@robot_router.get("/entries")
+def get_entry(db: Session = Depends(get_db)):
+    entries = get_all_entries(db)
+    return entries
+
